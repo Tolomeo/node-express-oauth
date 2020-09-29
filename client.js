@@ -1,3 +1,4 @@
+const url = require('url');
 const express = require("express")
 const bodyParser = require("body-parser")
 const axios = require("axios").default
@@ -26,6 +27,53 @@ app.use(bodyParser.urlencoded({ extended: true }))
 /*
 Your code here
 */
+
+app.get('/authorize', (req, res) => {
+	state = randomString();
+
+	res.redirect(url.format({
+		pathname: config.authorizationEndpoint,
+		query: {
+			response_type: "code",
+			client_id: config.clientId,
+			redirect_uri : config.redirectUri,
+			scope: "permission:name permission:date_of_birth",
+			state
+		}
+	}));
+})
+
+app.get('/callback', async (req, res) => {
+	const { state: callbackstate } = req.query
+
+	if (callbackstate !== state) {
+		return res.status(403).end();
+	}
+
+	const { data: { access_token } } = await axios({
+		method: 'POST',
+		url: config.tokenEndpoint,
+		auth: {
+			username: config.clientId,
+			password: config.clientSecret
+		},
+		data: {
+			code: req.query.code
+		}
+	});
+
+	const { data } = await axios({
+		method: 'GET',
+		url: config.userInfoEndpoint,
+		headers: {
+			authorization: `bearer ${access_token}`,
+		}
+	});
+
+	res.render("welcome", {
+		user: data
+	});
+})
 
 const server = app.listen(config.port, "localhost", function () {
 	var host = server.address().address
